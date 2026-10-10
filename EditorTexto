@@ -1,0 +1,163 @@
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import javax.swing.*;
+import javax.swing.text.*;
+import javax.swing.text.rtf.RTFEditorKit;
+ 
+public class EditorTexto extends JFrame implements ActionListener {
+ 
+    JTextPane texto = new JTextPane();
+    RTFEditorKit rtf = new RTFEditorKit();
+ 
+    JButton btnNuevo = new JButton("Nuevo");
+    JButton btnAbrir = new JButton("Abrir");
+    JButton btnGuardar = new JButton("Guardar");
+    JButton btnNegrita = new JButton("N");
+    JButton btnCursiva = new JButton("K");
+    JButton btnColor = new JButton("Color");
+ 
+    String[] tamanos = {"10", "12", "14", "16", "18", "20", "24", "28", "32", "36", "48"};
+    JComboBox<String> cmbTamano = new JComboBox<>(tamanos);
+ 
+    public EditorTexto() {
+        super("Editor de texto");
+        setSize(800, 600);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+ 
+        // El editor usa RTF para poder guardar el formato
+        texto.setEditorKit(rtf);
+ 
+        // Barra de botones
+        JPanel barra = new JPanel();
+        barra.add(btnNuevo);
+        barra.add(btnAbrir);
+        barra.add(btnGuardar);
+        barra.add(btnNegrita);
+        barra.add(btnCursiva);
+        barra.add(new JLabel("Tamaño:"));
+        barra.add(cmbTamano);
+        barra.add(btnColor);
+ 
+        add(barra, BorderLayout.NORTH);
+        add(new JScrollPane(texto), BorderLayout.CENTER);
+ 
+        // Todos los botones llaman a actionPerformed
+        btnNuevo.addActionListener(this);
+        btnAbrir.addActionListener(this);
+        btnGuardar.addActionListener(this);
+        btnNegrita.addActionListener(this);
+        btnCursiva.addActionListener(this);
+        btnColor.addActionListener(this);
+        cmbTamano.addActionListener(this);
+ 
+        btnNegrita.setFont(btnNegrita.getFont().deriveFont(Font.BOLD));
+        btnCursiva.setFont(btnCursiva.getFont().deriveFont(Font.ITALIC));
+        cmbTamano.setSelectedItem("14");
+    }
+ 
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        // Este evento le dice a las acciones sobre qué texto trabajar
+        ActionEvent ev = new ActionEvent(texto, ActionEvent.ACTION_PERFORMED, "");
+ 
+        if (e.getSource() == btnNuevo) {
+            nuevo();
+        } else if (e.getSource() == btnAbrir) {
+            abrir();
+        } else if (e.getSource() == btnGuardar) {
+            guardar();
+        } else if (e.getSource() == btnNegrita) {
+            new StyledEditorKit.BoldAction().actionPerformed(ev);
+            texto.requestFocus();
+        } else if (e.getSource() == btnCursiva) {
+            new StyledEditorKit.ItalicAction().actionPerformed(ev);
+            texto.requestFocus();
+        } else if (e.getSource() == cmbTamano) {
+            int tam = Integer.parseInt((String) cmbTamano.getSelectedItem());
+            new StyledEditorKit.FontSizeAction("tamano", tam).actionPerformed(ev);
+            texto.requestFocus();
+        } else if (e.getSource() == btnColor) {
+            Color color = JColorChooser.showDialog(this, "Elige un color", Color.BLACK);
+            if (color != null) {
+                new StyledEditorKit.ForegroundAction("color", color).actionPerformed(ev);
+            }
+            texto.requestFocus();
+        }
+    }
+ 
+    // 1. Archivo nuevo
+    void nuevo() {
+        texto.setDocument(rtf.createDefaultDocument());
+    }
+ 
+    // 2. Abrir archivo (.txt o .rtf)
+    void abrir() {
+        JFileChooser selector = new JFileChooser();
+        if (selector.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File archivo = selector.getSelectedFile();
+ 
+        try {
+            Document doc = rtf.createDefaultDocument();
+ 
+            if (archivo.getName().toLowerCase().endsWith(".txt")) {
+                try ( // Texto plano: se lee línea por línea
+                        BufferedReader lector = new BufferedReader(new FileReader(archivo))) {
+                    String linea;
+                    while ((linea = lector.readLine()) != null) {
+                        doc.insertString(doc.getLength(), linea + "\n", null);
+                    }
+                }
+            } else {
+                try ( // RTF: conserva el formato
+                        FileInputStream entrada = new FileInputStream(archivo)) {
+                    rtf.read(entrada, doc, 0);
+                }
+            }
+ 
+            texto.setDocument(doc);
+        } catch (IOException | BadLocationException ex) {
+            JOptionPane.showMessageDialog(this, "No se pudo abrir el archivo");
+        }
+    }
+ 
+    // 3. Guardar archivo (.txt o .rtf)
+    void guardar() {
+        JFileChooser selector = new JFileChooser();
+        if (selector.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File archivo = selector.getSelectedFile();
+        String nombre = archivo.getName().toLowerCase();
+ 
+        // Si no puso extensión, se guarda como RTF
+        if (!nombre.endsWith(".txt") && !nombre.endsWith(".rtf")) {
+            archivo = new File(archivo.getAbsolutePath() + ".rtf");
+        }
+ 
+        try {
+            Document doc = texto.getDocument();
+ 
+            if (archivo.getName().toLowerCase().endsWith(".txt")) {
+                try ( // Texto plano: se pierde el formato
+                        FileWriter escritor = new FileWriter(archivo)) {
+                    escritor.write(doc.getText(0, doc.getLength()));
+                }
+            } else {
+                try ( // RTF: guarda negritas, cursiva, tamaño y color
+                        FileOutputStream salida = new FileOutputStream(archivo)) {
+                    rtf.write(salida, doc, 0, doc.getLength());
+                }
+            }
+        } catch (IOException | BadLocationException ex) {
+            JOptionPane.showMessageDialog(this, "No se pudo guardar el archivo");
+        }
+    }
+ 
+    public static void main(String[] args) {
+        new EditorTexto().setVisible(true);
+    }
+}
